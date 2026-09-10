@@ -39,21 +39,23 @@ import com.alibaba.nacos.core.service.NamespaceOperationService;
  * @author xinluo
  */
 public abstract class AbstractMcpServerIndex implements McpServerIndex {
-
+    
     private final NamespaceOperationService namespaceOperationService;
-
+    
     protected final ConfigDetailService configDetailService;
-
-    public AbstractMcpServerIndex(NamespaceOperationService namespaceOperationService, ConfigDetailService configDetailService) {
+    
+    public AbstractMcpServerIndex(NamespaceOperationService namespaceOperationService,
+        ConfigDetailService configDetailService) {
         this.namespaceOperationService = namespaceOperationService;
         this.configDetailService = configDetailService;
     }
-
+    
     protected List<String> fetchOrderedNamespaceList() {
         return namespaceOperationService.getNamespaceList().stream()
-                .sorted(Comparator.comparing(Namespace::getNamespace)).map(Namespace::getNamespace).toList();
+            .sorted(Comparator.comparing(Namespace::getNamespace)).map(Namespace::getNamespace)
+            .toList();
     }
-
+    
     protected McpServerIndexData getFirstMcpServerByName(String name) {
         return fetchOrderedNamespaceList()
             .stream()
@@ -63,35 +65,43 @@ public abstract class AbstractMcpServerIndex implements McpServerIndex {
             .findFirst()
             .orElse(null);
     }
-
+    
     @Override
-    public Page<McpServerIndexData> searchMcpServerByNameWithPage(String namespaceId, String name, String search,
-            int pageNo, int limit) {
+    public Page<McpServerIndexData> searchMcpServerByNameWithPage(String namespaceId, String name,
+        String search,
+        int pageNo, int limit) {
         Page<ConfigInfo> serverInfos = searchMcpServers(namespaceId, name, search, pageNo, limit);
         List<McpServerIndexData> indexDataList = serverInfos.getPageItems().stream()
-                .map(this::mapMcpServerVersionConfigToIndexData).toList();
+            .map((configInfo) -> {
+                configInfo.setTenant(namespaceId);
+                return configInfo;
+            })
+            .map(this::mapToMcpServerVersionInfo)
+            .map(this::mcpToIndexAndUpdateToCache)
+            .toList();
         Page<McpServerIndexData> result = new Page<>();
         result.setPageItems(indexDataList);
         result.setTotalCount(serverInfos.getTotalCount());
-        result.setPagesAvailable((int) Math.ceil((double) serverInfos.getTotalCount() / (double) limit));
+        result.setPagesAvailable(
+            (int) Math.ceil((double) serverInfos.getTotalCount() / (double) limit));
         result.setPageNumber(pageNo);
-        afterSearch(indexDataList, name);
         return result;
     }
-
+    
     /**
      * Callback after search operation. Subclasses can implement this to perform additional operations.
      *
      * @param searchResult the search results
      * @param name the search name
      */
-    protected abstract void afterSearch(List<McpServerIndexData> searchResult, String name);
-
+    protected abstract void afterSearch(McpServerIndexData searchResult, String name);
+    
     /**
      * Search MCP servers.
      */
-    protected Page<ConfigInfo> searchMcpServers(String namespace, String serverName, String search, int pageNo,
-            int limit) {
+    protected Page<ConfigInfo> searchMcpServers(String namespace, String serverName, String search,
+        int pageNo,
+        int limit) {
         HashMap<String, Object> advanceInfo = new HashMap<>(1);
         if (Objects.isNull(serverName)) {
             serverName = "";
@@ -103,18 +113,25 @@ public abstract class AbstractMcpServerIndex implements McpServerIndex {
             search = Constants.MCP_LIST_SEARCH_BLUR;
         } else {
             advanceInfo.put(Constants.CONFIG_TAGS_NAME,
-                    McpConfigUtils.formatServerNameTagAccurateSearchValue(serverName));
+                McpConfigUtils.formatServerNameTagAccurateSearchValue(serverName));
             dataId = null;
         }
         return configDetailService.findConfigInfoPage(search, pageNo, limit, dataId,
-                Constants.MCP_SERVER_VERSIONS_GROUP, namespace, advanceInfo);
+            Constants.MCP_SERVER_VERSIONS_GROUP, namespace, advanceInfo);
     }
-
-    protected McpServerIndexData mapMcpServerVersionConfigToIndexData(ConfigInfo configInfo) {
+    
+    protected McpServerVersionInfo mapToMcpServerVersionInfo(ConfigInfo configInfo) {
+        McpServerVersionInfo obj =
+            JacksonUtils.toObj(configInfo.getContent(), McpServerVersionInfo.class);
+        obj.setNamespaceId(configInfo.getTenant());
+        return obj;
+    }
+    
+    protected McpServerIndexData mcpToIndexAndUpdateToCache(McpServerVersionInfo versionInfo) {
         McpServerIndexData data = new McpServerIndexData();
-        McpServerVersionInfo versionInfo = JacksonUtils.toObj(configInfo.getContent(), McpServerVersionInfo.class);
         data.setId(versionInfo.getId());
-        data.setNamespaceId(configInfo.getTenant());
+        data.setNamespaceId(versionInfo.getNamespaceId());
+        afterSearch(data, versionInfo.getName());
         return data;
     }
 }

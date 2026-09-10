@@ -49,6 +49,72 @@ public class CacheKeyUtils {
         return buildVersionedKey(agentName, version);
     }
     
+    /**
+     * Build skill key.
+     *
+     * @param skillName name of skill
+     * @return skill key, pattern ${skillName}
+     */
+    public static String buildSkillKey(String skillName) {
+        return skillName;
+    }
+    
+    /**
+     * Build skill query key.
+     *
+     * @param skillName skill name
+     * @param version skill version, optional
+     * @param label skill label, optional
+     * @return skill query key, pattern ${skillName}::label:${label}|version:${version}|latest
+     */
+    public static String buildSkillKey(String skillName, String version, String label) {
+        if (StringUtils.isNotBlank(label)) {
+            return skillName + "::label:" + label;
+        }
+        if (StringUtils.isNotBlank(version)) {
+            return skillName + "::version:" + version;
+        }
+        return skillName + "::" + LATEST_VERSION;
+    }
+    
+    /**
+     * Build agent spec key.
+     *
+     * @param agentSpecName name of agent spec
+     * @return agent spec key, pattern ${agentSpecName}
+     */
+    public static String buildAgentSpecKey(String agentSpecName) {
+        return agentSpecName;
+    }
+    
+    /**
+     * Build prompt key.
+     *
+     * @param promptKey prompt key
+     * @return prompt key for cache
+     */
+    public static String buildPromptKey(String promptKey) {
+        return promptKey;
+    }
+    
+    /**
+     * Build prompt query key.
+     *
+     * @param promptKey prompt key
+     * @param version prompt version, optional
+     * @param label prompt label, optional
+     * @return prompt query key, pattern ${promptKey}::label:${label}|version:${version}|latest
+     */
+    public static String buildPromptKey(String promptKey, String version, String label) {
+        if (StringUtils.isNotBlank(label)) {
+            return promptKey + "::label:" + label;
+        }
+        if (StringUtils.isNotBlank(version)) {
+            return promptKey + "::version:" + version;
+        }
+        return promptKey + "::" + LATEST_VERSION;
+    }
+    
     private static String buildVersionedKey(String name, String version) {
         if (StringUtils.isBlank(version)) {
             version = LATEST_VERSION;

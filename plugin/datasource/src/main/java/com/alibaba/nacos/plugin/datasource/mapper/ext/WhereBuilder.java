@@ -17,10 +17,12 @@
 package com.alibaba.nacos.plugin.datasource.mapper.ext;
 
 import com.alibaba.nacos.common.constant.Symbols;
+import com.alibaba.nacos.plugin.datasource.mapper.Mapper;
 import com.alibaba.nacos.plugin.datasource.model.MapperResult;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * Where Builder.
@@ -105,9 +107,36 @@ public final class WhereBuilder {
      * @return Return {@link WhereBuilder}
      */
     public WhereBuilder like(String filed, Object parameter) {
-        where.append(filed).append(" LIKE ? ");
+        return like(filed, parameter, "");
+    }
+    
+    /**
+     * Build LIKE with the escape clause required by the current dialect.
+     *
+     * <p>Fuzzy search parameters escape {@code _} with a backslash, so a dialect which has no
+     * default LIKE escape character must declare one explicitly, otherwise the backslash is
+     * matched literally and the query returns no row.</p>
+     *
+     * @param filed Filed name
+     * @param parameter Parameters
+     * @param escapeClause The escape clause of the dialect, empty means no escape clause is needed
+     * @return Return {@link WhereBuilder}
+     */
+    public WhereBuilder like(String filed, Object parameter, String escapeClause) {
+        where.append(filed).append(" LIKE ? ").append(escapeClause);
         parameters.add(parameter);
         return this;
+    }
+    
+    /**
+     * Build LIKE with escape.
+     *
+     * @param filed Filed name
+     * @param parameter Parameters
+     * @return Return {@link WhereBuilder}
+     */
+    public WhereBuilder likeWithEscape(String filed, Object parameter) {
+        return like(filed, parameter, Mapper.LIKE_ESCAPE_CLAUSE);
     }
     
     /**
@@ -139,10 +168,10 @@ public final class WhereBuilder {
      */
     public WhereBuilder offset(int startRow, int pageSize) {
         where.append(" OFFSET ")
-                .append(startRow)
-                .append(" ROWS FETCH NEXT ")
-                .append(pageSize)
-                .append(" ROWS ONLY");
+            .append(startRow)
+            .append(" ROWS FETCH NEXT ")
+            .append(pageSize)
+            .append(" ROWS ONLY");
         return this;
     }
     
@@ -155,9 +184,9 @@ public final class WhereBuilder {
      */
     public WhereBuilder limit(int startRow, int pageSize) {
         where.append(" LIMIT ")
-                .append(startRow)
-                .append(Symbols.COMMA)
-                .append(pageSize);
+            .append(startRow)
+            .append(Symbols.COMMA)
+            .append(pageSize);
         return this;
     }
     
@@ -169,6 +198,60 @@ public final class WhereBuilder {
      */
     public WhereBuilder groupBy(String fields) {
         where.append(" GROUP BY ").append(fields);
+        return this;
+    }
+    
+    /**
+     * Build ORDER BY.
+     *
+     * @param fields Order by fields
+     * @return Return {@link WhereBuilder}
+     */
+    public WhereBuilder orderBy(String fields) {
+        where.append(" ORDER BY ").append(fields);
+        return this;
+    }
+    
+    /**
+     * Build EXISTS conditional.
+     * <p>
+     * Used for sub-query filtering. Example:
+     * <pre>
+     * builder.exists(SELECT 1 FROM tags b WHERE, sub -> {
+     * sub.eqColumn("b.id", "a.id").and().like("b.tag", "dev");
+     * });
+     * </pre>
+     *
+     * @param subSqlPrefix The prefix of sub-query, usually "SELECT 1 FROM table WHERE "
+     * @param consumer     The lambda to build sub-query conditions
+     * @return Return {@link WhereBuilder}
+     */
+    public WhereBuilder exists(String subSqlPrefix, Consumer<WhereBuilder> consumer) {
+        WhereBuilder subBuilder = new WhereBuilder("");
+        subBuilder.where.setLength(0);
+        consumer.accept(subBuilder);
+        MapperResult res = subBuilder.build();
+        
+        where.append(" EXISTS ( ").append(subSqlPrefix).append(res.getSql()).append(" ) ");
+        
+        if (res.getParamList() != null) {
+            parameters.addAll(res.getParamList());
+        }
+        return this;
+    }
+    
+    /**
+     * Build column-to-column equality.
+     * <p>
+     * Unlike {@link #eq(String, Object)}, this method compares two columns directly without using placeholders (?) and
+     * adding parameters.
+     *
+     * @param field1 The first field name (e.g., "b.id")
+     * @param field2 The second field name to compare with (e.g., "a.id")
+     * @return Return {@link WhereBuilder}
+     */
+    public WhereBuilder eqColumn(String field1, String field2) {
+        where.append(field1).append(" = ").append(field2).append(" ");
         return this;
     }
     

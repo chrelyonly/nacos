@@ -16,21 +16,24 @@
 
 package com.alibaba.nacos.plugin.config;
 
+import com.alibaba.nacos.api.plugin.PluginStateCheckerHolder;
+import com.alibaba.nacos.api.plugin.PluginType;
 import com.alibaba.nacos.common.JustForTest;
 import com.alibaba.nacos.common.spi.NacosServiceLoader;
-import com.alibaba.nacos.common.utils.StringUtils;
+import com.alibaba.nacos.common.spi.PluginRegistryUtils;
 import com.alibaba.nacos.plugin.config.constants.ConfigChangePointCutTypes;
 import com.alibaba.nacos.plugin.config.spi.ConfigChangePluginService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Map;
-import java.util.Collection;
-import java.util.Optional;
-import java.util.List;
 import java.util.ArrayList;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 /**
  * All config change plugin manager.
@@ -49,14 +52,16 @@ public class ConfigChangePluginManager {
      * The relationship of serviceType and  {@link ConfigChangePluginService} ,default capacity is the count of plugin
      * service.
      */
-    private static final Map<String, ConfigChangePluginService> CONFIG_CHANGE_PLUGIN_SERVICE_MAP = new ConcurrentHashMap<>(
+    private static final Map<String, ConfigChangePluginService> CONFIG_CHANGE_PLUGIN_SERVICE_MAP =
+        new ConcurrentHashMap<>(
             PLUGIN_SERVICE_COUNT);
     
     /**
      * The relationship of config change pointcut type and the list of {@link ConfigChangePluginService} will pointcut
      * it, default capacity is the count of pointcutTypes.
      */
-    private static final Map<ConfigChangePointCutTypes, List<ConfigChangePluginService>> CONFIG_CHANGE_PLUGIN_SERVICES_MAP = new ConcurrentHashMap<>(
+    private static final Map<ConfigChangePointCutTypes, List<ConfigChangePluginService>> CONFIG_CHANGE_PLUGIN_SERVICES_MAP =
+        new ConcurrentHashMap<>(
             POINT_CUT_TYPE_COUNT);
     
     private static final ConfigChangePluginManager INSTANCE = new ConfigChangePluginManager();
@@ -70,37 +75,24 @@ public class ConfigChangePluginManager {
      */
     private static void loadConfigChangeServices() {
         Collection<ConfigChangePluginService> configChangePluginServices = NacosServiceLoader
-                .load(ConfigChangePluginService.class);
+            .load(ConfigChangePluginService.class);
         // load all config change plugin by spi
         for (ConfigChangePluginService each : configChangePluginServices) {
-            if (StringUtils.isEmpty(each.getServiceType())) {
-                LOGGER.warn("[ConfigChangePluginManager] Load {}({}) ConfigChangeServiceName(null/empty) fail. "
-                                + "Please Add the Plugin Service ConfigChangeServiceName to resolve.",
-                        each.getClass().getName(), each.getClass());
-                continue;
+            String serviceType = each == null ? null : each.getServiceType();
+            if (PluginRegistryUtils.registerFirst(CONFIG_CHANGE_PLUGIN_SERVICE_MAP,
+                PluginType.CONFIG_CHANGE.getType(), serviceType, each, LOGGER)) {
+                LOGGER.info("[ConfigChangePluginManager] Load {}({}) "
+                    + "ConfigChangeServiceName({}) successfully.", each.getClass().getName(),
+                    each.getClass(), serviceType);
+                addPluginServiceByPointCut(each);
             }
-            CONFIG_CHANGE_PLUGIN_SERVICE_MAP.put(each.getServiceType(), each);
-            LOGGER.info("[ConfigChangePluginManager] Load {}({}) ConfigChangeServiceName({}) successfully.",
-                    each.getClass().getName(), each.getClass(), each.getServiceType());
-            // map the relationship of pointcut and plugin service
-            addPluginServiceByPointCut(each);
         }
         // sort plugin service
         sortPluginServiceByPointCut();
     }
-
+    
     public static ConfigChangePluginManager getInstance() {
         return INSTANCE;
-    }
-    
-    /**
-     * Dynamic get any pluginServiceImpl.
-     *
-     * @param serviceType plugin service type.
-     * @return
-     */
-    public Optional<ConfigChangePluginService> findPluginServiceImpl(String serviceType) {
-        return Optional.ofNullable(CONFIG_CHANGE_PLUGIN_SERVICE_MAP.get(serviceType));
     }
     
     /**
@@ -110,8 +102,12 @@ public class ConfigChangePluginManager {
      * @return
      */
     public static synchronized boolean join(ConfigChangePluginService configChangePluginService) {
-        CONFIG_CHANGE_PLUGIN_SERVICE_MAP
-                .putIfAbsent(configChangePluginService.getServiceType(), configChangePluginService);
+        String serviceType =
+            configChangePluginService == null ? null : configChangePluginService.getServiceType();
+        if (!PluginRegistryUtils.registerFirst(CONFIG_CHANGE_PLUGIN_SERVICE_MAP,
+            PluginType.CONFIG_CHANGE.getType(), serviceType, configChangePluginService, LOGGER)) {
+            return false;
+        }
         addPluginServiceByPointCut(configChangePluginService);
         return true;
     }
@@ -123,14 +119,20 @@ public class ConfigChangePluginManager {
      * @return
      */
     public static List<ConfigChangePluginService> findPluginServicesByPointcut(
-            ConfigChangePointCutTypes pointcutName) {
-        return CONFIG_CHANGE_PLUGIN_SERVICES_MAP.getOrDefault(pointcutName, new ArrayList<>());
+        ConfigChangePointCutTypes pointcutName) {
+        return CONFIG_CHANGE_PLUGIN_SERVICES_MAP.getOrDefault(pointcutName, new ArrayList<>())
+            .stream()
+            .filter(service -> PluginStateCheckerHolder.isPluginEnabled(
+                PluginType.CONFIG_CHANGE.getType(), service.getServiceType()))
+            .collect(Collectors.toList());
     }
     
-    private static void addPluginServiceByPointCut(ConfigChangePluginService configChangePluginService) {
+    private static void addPluginServiceByPointCut(
+        ConfigChangePluginService configChangePluginService) {
         ConfigChangePointCutTypes[] pointcutNames = configChangePluginService.pointcutMethodNames();
         for (ConfigChangePointCutTypes name : pointcutNames) {
-            List<ConfigChangePluginService> configChangePluginServiceList = CONFIG_CHANGE_PLUGIN_SERVICES_MAP
+            List<ConfigChangePluginService> configChangePluginServiceList =
+                CONFIG_CHANGE_PLUGIN_SERVICES_MAP
                     .get(name);
             if (configChangePluginServiceList == null) {
                 configChangePluginServiceList = new ArrayList<>(PLUGIN_SERVICE_COUNT);
@@ -139,7 +141,7 @@ public class ConfigChangePluginManager {
             CONFIG_CHANGE_PLUGIN_SERVICES_MAP.put(name, configChangePluginServiceList);
         }
     }
-
+    
     private static void sortPluginServiceByPointCut() {
         CONFIG_CHANGE_PLUGIN_SERVICES_MAP.forEach((type, pluginServices) -> {
             List<ConfigChangePluginService> sortedList = new ArrayList<>(pluginServices);
@@ -152,5 +154,14 @@ public class ConfigChangePluginManager {
     public static synchronized void reset() {
         CONFIG_CHANGE_PLUGIN_SERVICE_MAP.clear();
         CONFIG_CHANGE_PLUGIN_SERVICES_MAP.clear();
+    }
+    
+    /**
+     * Get all config change plugin services.
+     *
+     * @return unmodifiable map of all config change plugin services
+     */
+    public Map<String, ConfigChangePluginService> getAllPlugins() {
+        return Collections.unmodifiableMap(CONFIG_CHANGE_PLUGIN_SERVICE_MAP);
     }
 }

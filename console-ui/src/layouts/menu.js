@@ -48,13 +48,27 @@ const configurationMenu = {
 };
 
 export const McpServerManagementRoute = '/mcpServerManagement';
-const AiControlMenu = {
-  key: 'AiManagementVirtual',
+
+// AI Registry 菜单，包含 MCP Registry、Agent Registry、Skill Registry、Prompt Registry
+const aiRegistryMenu = {
+  key: 'aiRegistry',
   badge: 'new',
   children: [
     {
-      key: 'mcpList',
+      key: 'mcpRegistry',
       url: McpServerManagementRoute,
+    },
+    {
+      key: 'agentRegistry',
+      url: '/agentManagement',
+    },
+    {
+      key: 'skillRegistry',
+      url: '/skillManagement',
+    },
+    {
+      key: 'promptRegistry',
+      url: '/promptManagement',
     },
   ],
 };
@@ -97,6 +111,12 @@ const settingMenu = {
   url: '/settingCenter',
 };
 
+const pluginMenu = {
+  key: 'pluginManagement',
+  badge: 'new',
+  url: '/pluginManagement',
+};
+
 const agentManagementMenu = {
   key: 'agentManagement',
   badge: 'new',
@@ -109,7 +129,7 @@ const agentManagementMenu = {
   ],
 };
 
-export default function(model) {
+export default function(model, aiEnabled = true) {
   const { token = '{}' } = localStorage;
   const { globalAdmin } = isJsonString(token) ? JSON.parse(token) || {} : {};
   const result = [];
@@ -117,10 +137,16 @@ export default function(model) {
     result.push(serviceDiscoveryMenu);
   } else if (model === 'config') {
     result.push(configurationMenu);
+  } else if (model === 'microservice') {
+    result.push(configurationMenu, serviceDiscoveryMenu);
+  } else if (model === 'ai') {
+    result.push(aiRegistryMenu, pluginMenu);
   } else {
     result.push(configurationMenu, serviceDiscoveryMenu);
-    result.push(AiControlMenu);
-    result.push(agentManagementMenu);
+    if (aiEnabled) {
+      result.push(aiRegistryMenu);
+    }
+    result.push(pluginMenu);
   }
   if (globalAdmin) {
     result.push(authorityControlMenu);
@@ -128,5 +154,5 @@ export default function(model) {
   result.push(namespaceMenu);
   result.push(clusterMenu);
   result.push(settingMenu);
-  return result.filter(item => item);
+  return result;
 }

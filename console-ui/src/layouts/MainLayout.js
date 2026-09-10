@@ -21,7 +21,7 @@ import PropTypes from 'prop-types';
 import { ConfigProvider, Icon, Menu, Message, Dialog, Badge } from '@alifd/next';
 import Header from './Header';
 import { getState, getNotice, getGuide } from '../reducers/base';
-import getMenuData, { McpServerManagementRoute, McpServerManagementRouteName } from './menu';
+import getMenuData from './menu';
 import './index.scss';
 
 const { SubMenu, Item } = Menu;
@@ -48,18 +48,23 @@ class MainLayout extends React.Component {
     getState: PropTypes.func,
     functionMode: PropTypes.string,
     authEnabled: PropTypes.string,
-    children: PropTypes.array,
-    getNotice: PropTypes.func,
-    notice: PropTypes.string,
+    aiEnabled: PropTypes.bool,
+    children: PropTypes.oneOfType([PropTypes.array, PropTypes.node]),
     consoleUiEnable: PropTypes.string,
+    getNotice: PropTypes.func,
     getGuide: PropTypes.func,
     guideMsg: PropTypes.string,
   };
 
   componentDidMount() {
     this.props.getState();
-    this.props.getNotice();
     this.props.getGuide();
+  }
+
+  componentDidUpdate(prevProps) {
+    if (prevProps.language !== this.props.language) {
+      this.props.getNotice();
+    }
   }
 
   goBack() {
@@ -71,6 +76,8 @@ class MainLayout extends React.Component {
     const pageParamMap = {
       '/configurationManagement': ['namespace', 'namespaceShowName', 'dataId', 'group', 'appName'],
       '/agentManagement': ['namespace', 'namespaceShowName', 'searchName'],
+      '/skillManagement': ['namespace', 'namespaceShowName', 'searchName'],
+      '/promptManagement': ['namespace', 'namespaceShowName', 'searchName'],
       '/mcpServerManagement': ['namespace', 'namespaceShowName'],
       '/serviceManagement': ['namespace', 'namespaceShowName'],
     };
@@ -102,7 +109,7 @@ class MainLayout extends React.Component {
   }
 
   defaultOpenKeys() {
-    const MenuData = getMenuData(this.props.functionMode);
+    const MenuData = getMenuData(this.props.functionMode, this.props.aiEnabled);
     for (let i = 0, len = MenuData.length; i < len; i++) {
       const { children } = MenuData[i];
       if (children && children.filter(({ url }) => url === this.props.location.pathname).length) {
@@ -113,7 +120,7 @@ class MainLayout extends React.Component {
 
   isShowGoBack() {
     const urls = [];
-    const MenuData = getMenuData(this.props.functionMode);
+    const MenuData = getMenuData(this.props.functionMode, this.props.aiEnabled);
     MenuData.forEach(item => {
       if (item.url) urls.push(item.url);
       if (item.children) item.children.forEach(({ url }) => urls.push(url));
@@ -127,11 +134,12 @@ class MainLayout extends React.Component {
       version,
       functionMode,
       authEnabled,
+      aiEnabled,
       consoleUiEnable,
       startupMode,
     } = this.props;
     const { visible } = this.state;
-    const MenuData = getMenuData(functionMode);
+    const MenuData = getMenuData(functionMode, aiEnabled);
     return (
       <section
         className="next-shell next-shell-desktop next-shell-brand"
@@ -199,6 +207,23 @@ class MainLayout extends React.Component {
                               </SubMenu>
                             );
                           }
+                          const itemLabel = subMenu.badge ? (
+                            <span>
+                              <Badge
+                                content={subMenu.badge}
+                                style={{
+                                  backgroundColor: '#FC0E3D',
+                                  color: '#FFFFFF',
+                                  right: '-45px',
+                                  top: '-10px',
+                                }}
+                              >
+                                {locale[subMenu.key]}
+                              </Badge>
+                            </span>
+                          ) : (
+                            locale[subMenu.key]
+                          );
                           return (
                             <Item
                               key={String(idx)}
@@ -207,7 +232,7 @@ class MainLayout extends React.Component {
                                 .join(' ')}
                               onClick={() => this.navTo(subMenu.url)}
                             >
-                              {locale[subMenu.key]}
+                              {itemLabel}
                             </Item>
                           );
                         })}
@@ -217,11 +242,6 @@ class MainLayout extends React.Component {
               </div>
             </div>
             <div className="right-panel next-shell-sub-main">
-              {authEnabled === 'false' && consoleUiEnable === 'true' ? (
-                <Message type="notice">
-                  <div dangerouslySetInnerHTML={{ __html: this.props.notice }} />
-                </Message>
-              ) : null}
               {consoleUiEnable === 'false' && (
                 <Dialog
                   visible={visible}

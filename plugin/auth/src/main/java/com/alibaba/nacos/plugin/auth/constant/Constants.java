@@ -26,18 +26,38 @@ public class Constants {
     public static class Auth {
         
         public static final String NACOS_CORE_AUTH_ENABLED = "nacos.core.auth.enabled";
-    
-        public static final String NACOS_CORE_AUTH_CONSOLE_ENABLED = "nacos.core.auth.console.enabled";
+        
+        public static final String NACOS_CORE_AUTH_CONSOLE_ENABLED =
+            "nacos.core.auth.console.enabled";
         
         public static final String NACOS_CORE_AUTH_ADMIN_ENABLED = "nacos.core.auth.admin.enabled";
         
+        public static final String NACOS_PLUGIN_AUTH_TYPE = "nacos.plugin.auth.type";
+        
+        /**
+         * Legacy auth plugin selection property.
+         *
+         * @deprecated use {@link #NACOS_PLUGIN_AUTH_TYPE} instead. Planned for removal in
+         *     Nacos 4.0.0.
+         */
+        @Deprecated
         public static final String NACOS_CORE_AUTH_SYSTEM_TYPE = "nacos.core.auth.system.type";
         
-        public static final String NACOS_CORE_AUTH_CACHING_ENABLED = "nacos.core.auth.caching.enabled";
+        /**
+         * Legacy default auth plugin authorization cache property.
+         *
+         * @deprecated use {@code nacos.plugin.auth.nacos.caching.enabled} instead. Planned for
+         *     removal in Nacos 4.0.0.
+         */
+        @Deprecated
+        public static final String NACOS_CORE_AUTH_CACHING_ENABLED =
+            "nacos.core.auth.caching.enabled";
         
-        public static final String NACOS_CORE_AUTH_SERVER_IDENTITY_KEY = "nacos.core.auth.server.identity.key";
+        public static final String NACOS_CORE_AUTH_SERVER_IDENTITY_KEY =
+            "nacos.core.auth.server.identity.key";
         
-        public static final String NACOS_CORE_AUTH_SERVER_IDENTITY_VALUE = "nacos.core.auth.server.identity.value";
+        public static final String NACOS_CORE_AUTH_SERVER_IDENTITY_VALUE =
+            "nacos.core.auth.server.identity.value";
         
     }
     
@@ -50,6 +70,24 @@ public class Constants {
         public static final String ACTION = "action";
         
         public static final String REQUEST_CLASS = "requestClass";
+        
+        public static final String CONSOLE_RESOURCE_NAME_PREFIX = "console/";
+        
+        public static final String AI_TYPE = "aiType";
+        
+        public static final String AI_TYPE_MCP = "mcp";
+        
+        public static final String AI_TYPE_AGENT = "agent";
+        
+        public static final String AI_TYPE_SKILL = "skill";
+        
+        public static final String AI_TYPE_PROMPT = "prompt";
+        
+        public static final String AI_TYPE_AGENT_SPEC = "agentSpec";
+        
+        public static final String AI_TYPE_ARD = "ard";
+        
+        public static final String AI_TYPE_RESOURCE = "resource";
     }
     
     public static class Identity {
@@ -61,14 +99,22 @@ public class Constants {
         public static final String REMOTE_IP = "remote_ip";
         
         public static final String IDENTITY_CONTEXT = "identity_context";
+        
+        public static final String SERVER_IDENTITY = "server_identity";
     }
     
     public static class Tag {
         
         public static final String ONLY_IDENTITY = "only_identity";
         
+        /**
+         * Tag value that marks a {@link com.alibaba.nacos.auth.annotation.Secured} API as allowing anonymous access.
+         */
+        public static final String ALLOW_ANONYMOUS = "allowAnonymous";
+        
         public static final String SECURED_SPECIAL_TAGS =
-                com.alibaba.nacos.api.common.Constants.NAMESPACE_ID + Resource.SPLITTER
-                        + com.alibaba.nacos.api.common.Constants.TARGET_NAMESPACE_ID;
+            com.alibaba.nacos.api.common.Constants.NAMESPACE_ID
+                + Resource.SPLITTER
+                + com.alibaba.nacos.api.common.Constants.TARGET_NAMESPACE_ID;
     }
 }

@@ -32,12 +32,12 @@ import java.util.concurrent.TimeUnit;
  *
  * @author xiweng.yy
  */
-@SuppressWarnings("PMD.ServiceOrDaoClassShouldEndWithImplRule")
 @Service
 public class SimpleSyncEffectService implements SyncEffectService {
     
     @Override
-    public void toSync(ConfigForm configForm, long startTimeStamp, long timeout, TimeUnit timeUnit) {
+    public void toSync(ConfigForm configForm, long startTimeStamp, long timeout,
+        TimeUnit timeUnit) {
         try {
             Thread.sleep(timeout);
         } catch (InterruptedException ignored) {
